@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>학급 캘린더</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="app-header">
+    <h1 id="class-name" class="class-name"></h1>
+    <div class="month-nav">
+      <button type="button" id="prev-month" class="icon-btn" aria-label="이전 달">◀</button>
+      <button type="button" id="today-btn" class="text-btn">오늘</button>
+      <button type="button" id="next-month" class="icon-btn" aria-label="다음 달">▶</button>
+      <h2 id="month-title" class="month-title" aria-live="polite"></h2>
+    </div>
+    <div class="header-tools">
+      <p id="sync-status" class="sync-status"></p>
+      <button type="button" id="export-btn" class="text-btn edit-only">JSON 내보내기</button>
+      <button type="button" id="lock-btn" class="text-btn lock-btn" aria-pressed="false" hidden>
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 11h12v9H6z M8 11V8a4 4 0 0 1 8 0v3"/></svg>
+        <span id="lock-label">편집</span>
+      </button>
+    </div>
+    <div class="view-tabs" role="tablist" aria-label="보기 전환">
+      <button type="button" role="tab" id="tab-month" data-view="month" aria-controls="month-view">월간</button>
+      <button type="button" role="tab" id="tab-list" data-view="list" aria-controls="list-view">목록</button>
+    </div>
+    <button type="button" id="add-btn" class="primary-btn add-btn edit-only">+ 일정</button>
+  </header>
+
+  <main>
+    <section class="upcoming" aria-labelledby="upcoming-title">
+      <h2 id="upcoming-title" class="section-title">다가오는 마감 <span class="section-sub">7일 이내</span></h2>
+      <ul id="upcoming-list" class="upcoming-list"></ul>
+    </section>
+
+    <section class="filters" aria-label="카테고리 필터와 검색">
+      <div id="filter-chips" class="filter-chips" role="group" aria-label="카테고리 필터"></div>
+      <div class="search" role="search">
+        <label for="search-input" class="visually-hidden">일정 검색</label>
+        <input id="search-input" type="search" placeholder="제목·내용·과목 검색" autocomplete="off" enterkeyhint="search">
+      </div>
+    </section>
+
+    <section id="month-view" class="month-view" role="tabpanel" aria-labelledby="tab-month">
+      <div class="weekdays" aria-hidden="true">
+        <span class="sun">일</span><span>월</span><span>화</span><span>수</span><span>목</span><span>금</span><span class="sat">토</span>
+      </div>
+      <div id="month-grid" class="month-grid"></div>
+      <div id="day-panel" class="day-panel" hidden></div>
+    </section>
+
+    <section id="list-view" class="list-view" role="tabpanel" aria-labelledby="tab-list"></section>
+  </main>
+
+  <div id="modal" class="modal" hidden>
+    <div class="modal-backdrop" data-close></div>
+    <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+      <div class="modal-header">
+        <h2 id="modal-title" class="modal-title"></h2>
+        <button type="button" class="icon-btn" data-close aria-label="닫기">✕</button>
+      </div>
+      <p id="write-error" class="write-error" role="alert" hidden></p>
+
+      <div id="detail-view" class="modal-body" hidden>
+        <div id="detail-content" class="detail-content"></div>
+        <div class="status-picker edit-only" role="group" aria-labelledby="status-label">
+          <span id="status-label" class="status-label">진행 상태</span>
+          <div id="status-buttons" class="segmented"></div>
+          <p id="status-hint" class="field-hint"></p>
+        </div>
+        <label class="detail-my-done">
+          <input type="checkbox" id="detail-my-done">
+          <span>나 완료 <span class="field-hint">(이 기기에만 저장돼요)</span></span>
+        </label>
+        <div id="detail-actions" class="modal-actions edit-only">
+          <button type="button" id="delete-btn" class="danger-outline-btn">삭제</button>
+          <button type="button" id="edit-btn" class="primary-btn">수정</button>
+        </div>
+        <div id="delete-confirm" class="confirm-box" hidden>
+          <p class="confirm-text">삭제할까요? 되돌릴 수 없어요.</p>
+          <div class="modal-actions">
+            <button type="button" id="delete-cancel" class="text-btn">취소</button>
+            <button type="button" id="delete-ok" class="danger-btn">삭제</button>
+          </div>
+        </div>
+      </div>
+
+      <form id="event-form" class="modal-body" novalidate hidden>
+        <div class="field">
+          <label for="f-title">제목 <span class="req">(필수)</span></label>
+          <input id="f-title" name="title" type="text" maxlength="50" autocomplete="off" aria-describedby="err-title">
+          <p id="err-title" class="field-error" hidden></p>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label for="f-category">카테고리 <span class="req">(필수)</span></label>
+            <select id="f-category" name="category" aria-describedby="err-category"></select>
+            <p id="err-category" class="field-error" hidden></p>
+          </div>
+          <div class="field" id="subject-field">
+            <label for="f-subject">과목</label>
+            <input id="f-subject" name="subject" type="text" maxlength="20" placeholder="예: 수학" list="subject-options" autocomplete="off">
+            <datalist id="subject-options">
+              <option value="국어"></option><option value="수학"></option><option value="영어"></option>
+              <option value="한국사"></option><option value="사회"></option><option value="과학"></option>
+              <option value="체육"></option><option value="음악"></option><option value="미술"></option>
+              <option value="정보"></option>
+            </datalist>
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label for="f-start">시작일 <span class="req">(필수)</span></label>
+            <input id="f-start" name="startDate" type="date" aria-describedby="err-start">
+            <p id="err-start" class="field-error" hidden></p>
+          </div>
+          <div class="field">
+            <label for="f-due">마감일</label>
+            <input id="f-due" name="dueDate" type="date" aria-describedby="hint-due err-due">
+            <p id="hint-due" class="field-hint">비우면 시작일과 같아요</p>
+            <p id="err-due" class="field-error" hidden></p>
+          </div>
+        </div>
+        <div class="field">
+          <label for="f-time">마감 시각</label>
+          <input id="f-time" name="dueTime" type="time">
+        </div>
+        <div class="field">
+          <label for="f-desc">내용</label>
+          <textarea id="f-desc" name="description" maxlength="500" rows="4" aria-describedby="desc-count"></textarea>
+          <p id="desc-count" class="field-hint">0 / 500</p>
+        </div>
+        <div class="modal-actions">
+          <button type="button" id="form-cancel" class="text-btn">취소</button>
+          <button type="submit" id="form-submit" class="primary-btn">저장</button>
+        </div>
+      </form>
+
+      <form id="password-form" class="modal-body" novalidate hidden>
+        <p class="field-hint">담임 선생님이 정한 편집 비밀번호를 넣으면 일정을 추가·수정·삭제할 수 있어요. 이 탭을 닫으면 다시 잠겨요.</p>
+        <div class="field">
+          <label for="f-password">편집 비밀번호</label>
+          <input id="f-password" name="password" type="password" autocomplete="current-password" aria-describedby="err-password">
+          <p id="err-password" class="field-error" hidden></p>
+        </div>
+        <div class="modal-actions">
+          <button type="button" id="password-cancel" class="text-btn">취소</button>
+          <button type="submit" id="password-submit" class="primary-btn">확인</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
